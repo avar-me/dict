@@ -2,3 +2,4 @@ pyglossary==5.4.2
 lxml
 marisa-trie
 PyICU
+fpdf2

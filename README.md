@@ -1,6 +1,6 @@
 # dict.avar.me
 
-Словари экосистемы [avar.me](https://avar.me), пересобранные во все известные форматы офлайн-словарных приложений: **DSL** (ABBYY Lingvo), **StarDict**, **EPUB**, **Mobi**, **Kobo**, **Babylon (.BGL)**, **Apple Dictionary**, **Aard2/Slob**, **DICT.org**, **QuickDic**, **Yomichan**, **Tabfile** и другие — всё, что умеет писать [pyglossary](https://github.com/ilius/pyglossary), плюс DSL (который pyglossary не пишет, только читает — здесь он собирается отдельным минимальным конвертером).
+Словари экосистемы [avar.me](https://avar.me), пересобранные во все известные форматы офлайн-словарных приложений: **DSL** (ABBYY Lingvo), **StarDict**, **EPUB**, **Mobi**, **Kobo**, **Babylon (.BGL)**, **Apple Dictionary**, **Aard2/Slob**, **DICT.org**, **QuickDic**, **Yomichan**, **Tabfile**, **PDF**, **FB2** (FictionBook) и другие — всё, что умеет писать [pyglossary](https://github.com/ilius/pyglossary), плюс DSL/FB2/PDF (которые pyglossary не пишет — собираются тремя минимальными ручными конвертерами в `src/convert.py`).
 
 Источник данных — [`avar-me/sources`](https://github.com/avar-me/sources); этот репозиторий ничего не хранит, только конвертирует и публикует.
 

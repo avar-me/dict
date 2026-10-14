@@ -24,6 +24,8 @@ from pathlib import Path
 
 from pyglossary.glossary_v2 import Glossary
 
+FONTS_DIR = Path(__file__).resolve().parent / "fonts"
+
 # Formats that are not real distributable dictionary-app formats (data
 # interchange, internal pyglossary test/cache formats, or redundant with
 # a format we already produce). Everything else pyglossary can write, we
@@ -199,6 +201,125 @@ def write_dsl(entries: list[dict], out_path: Path, dict_name: str, index_lang: s
             f.write("\n")
 
 
+# ---------- FB2 (FictionBook, for PocketBook and others) ----------
+# pyglossary has no FB2 plugin (read or write), so this is hand-rolled too.
+
+def xml_escape(text: str | None) -> str:
+    return htmllib.escape(text or "", quote=False)
+
+
+def render_definition_fb2(entry: dict) -> str:
+    """Plain FB2 body paragraphs (<p>/<emphasis>/<strong> only -- FB2's
+    paragraph model doesn't nest lists, so examples become their own
+    paragraphs rather than <ul><li>...)."""
+    paras = []
+    meta_bits = []
+    if entry.get("pos"):
+        meta_bits.append(entry["pos"])
+    if entry.get("form") and entry["form"] != "—":
+        meta_bits.append(entry["form"])
+    if meta_bits:
+        paras.append(f'<p><emphasis>{xml_escape(", ".join(meta_bits))}</emphasis></p>')
+
+    forms = entry.get("forms") or []
+    if len(forms) > 1:
+        paras.append(f'<p><emphasis>формы:</emphasis> {xml_escape(", ".join(forms))}</p>')
+
+    senses = entry.get("senses") or []
+    multi = len(senses) > 1
+    for i, sense in enumerate(senses, 1):
+        prefix = f"{i}. " if multi else ""
+        text = sense.get("text") or sense.get("translation") or ""
+        labels = sense.get("labels") or []
+        label_str = f' <emphasis>({xml_escape(", ".join(labels))})</emphasis>' if labels else ""
+        comment = sense.get("comment")
+        comment_str = (
+            f' <emphasis>{xml_escape(comment)}</emphasis>'
+            if comment and sense.get("comment_lang") != "av"
+            else ""
+        )
+        if text or label_str or comment_str:
+            paras.append(f'<p><strong>{xml_escape(prefix)}</strong>{xml_escape(text)}{label_str}{comment_str}</p>')
+        for ex in sense.get("examples") or entry.get("examples") or []:
+            av = xml_escape(ex.get("av", ""))
+            ru = xml_escape(ex.get("ru", ""))
+            if av or ru:
+                paras.append(f'<p>— {av} — {ru}</p>')
+
+    see_also = entry.get("see_also") or []
+    if see_also:
+        refs = ", ".join(xml_escape(sa["target"]) for sa in see_also)
+        paras.append(f'<p><emphasis>см. также:</emphasis> {refs}</p>')
+
+    return "".join(paras) if paras else "<p>(нет данных)</p>"
+
+
+def write_fb2(entries: list[dict], out_path: Path, dict_name: str, description: str, lang: str) -> None:
+    sections = []
+    for e in entries:
+        word = headword(e)
+        if not word:
+            continue
+        sections.append(
+            f'<section><title><p>{xml_escape(word)}</p></title>'
+            f'{render_definition_fb2(e)}</section>'
+        )
+    fb2 = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<FictionBook xmlns="http://www.gribuser.ru/xml/fictionbook/2.0">\n'
+        '<description><title-info>'
+        '<genre>reference</genre>'
+        '<author><nickname>avar.me</nickname></author>'
+        f'<book-title>{xml_escape(dict_name)}</book-title>'
+        f'<annotation><p>{xml_escape(description)}</p></annotation>'
+        f'<lang>{xml_escape(lang or "av")}</lang>'
+        '</title-info>'
+        '<document-info><author><nickname>avar.me</nickname></author></document-info>'
+        '</description>\n'
+        f'<body>{"".join(sections)}</body>\n'
+        "</FictionBook>\n"
+    )
+    out_path.write_text(fb2, encoding="utf-8")
+
+
+# ---------- PDF (any e-reader / print) ----------
+# pyglossary has no PDF plugin either; rendered with fpdf2, reusing the
+# same HTML definitions as the pyglossary-backed formats via write_html().
+
+def write_pdf(entries: list[dict], out_path: Path, dict_name: str, description: str) -> None:
+    from fpdf import FPDF, XPos, YPos
+
+    # multi_cell leaves the cursor at new_x/new_y after writing; without
+    # resetting it to the left margin every call, the next multi_cell
+    # starts near the right edge with ~0 width left and fpdf2 raises.
+    FULL_LINE = {"new_x": XPos.LMARGIN, "new_y": YPos.NEXT}
+
+    pdf = FPDF()
+    pdf.add_font("DejaVu", "", str(FONTS_DIR / "DejaVuSans.ttf"))
+    pdf.add_font("DejaVu", "B", str(FONTS_DIR / "DejaVuSans-Bold.ttf"))
+    pdf.add_font("DejaVu", "I", str(FONTS_DIR / "DejaVuSans-Oblique.ttf"))
+    pdf.set_margins(18, 18, 18)
+    pdf.add_page()
+    pdf.set_font("DejaVu", "B", 18)
+    pdf.multi_cell(0, 10, dict_name, **FULL_LINE)
+    pdf.set_font("DejaVu", "", 10)
+    pdf.multi_cell(0, 6, description, **FULL_LINE)
+    pdf.ln(4)
+
+    for e in entries:
+        word = headword(e)
+        if not word:
+            continue
+        pdf.set_font("DejaVu", "B", 13)
+        pdf.multi_cell(0, 8, word, **FULL_LINE)
+        pdf.set_font("DejaVu", "", 10)
+        pdf.write_html(render_definition_html(e))
+        pdf.set_x(pdf.l_margin)
+        pdf.ln(2)
+
+    pdf.output(str(out_path))
+
+
 # ---------- generic pyglossary-backed formats ----------
 
 def build_glossary(entries: list[dict], dict_name: str, description: str) -> Glossary:
@@ -267,6 +388,30 @@ def convert_source(
         print("    DSL: ok")
     except Exception:
         print(f"    DSL: FAILED\n{traceback.format_exc()}", file=sys.stderr)
+
+    # FB2, hand-rolled.
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            fb2_file = Path(tmp) / f"{dict_id}.fb2"
+            write_fb2(entries, fb2_file, dict_name, description, index_lang)
+            dest = out_dir / f"{dict_id}-fb2"
+            zip_path(fb2_file, dest)
+            results.append(("FB2 (FictionBook)", dest.with_suffix(".zip")))
+        print("    FB2: ok")
+    except Exception:
+        print(f"    FB2: FAILED\n{traceback.format_exc()}", file=sys.stderr)
+
+    # PDF, hand-rolled (fpdf2).
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            pdf_file = Path(tmp) / f"{dict_id}.pdf"
+            write_pdf(entries, pdf_file, dict_name, description)
+            dest = out_dir / f"{dict_id}-pdf"
+            zip_path(pdf_file, dest)
+            results.append(("PDF", dest.with_suffix(".zip")))
+        print("    PDF: ok")
+    except Exception:
+        print(f"    PDF: FAILED\n{traceback.format_exc()}", file=sys.stderr)
 
     # Every write-capable pyglossary plugin.
     formats = list_pyglossary_formats()
