@@ -12,11 +12,11 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
 
 echo "=== 1. Конвертация всех словарей ==="
-python3 src/build_all.py
+python3 -u src/build_all.py
 
 echo ""
 echo "=== 2. Сборка index.html ==="
-python3 src/build_site.py
+python3 -u src/build_site.py
 
 if [ ! -f "$ROOT/docs/index.html" ]; then
   echo "build.sh: docs/index.html не создан" >&2

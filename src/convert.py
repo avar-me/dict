@@ -19,6 +19,7 @@ import json
 import shutil
 import sys
 import tempfile
+import time
 import traceback
 from pathlib import Path
 
@@ -378,6 +379,7 @@ def convert_source(
     results: list[tuple[str, Path]] = []
 
     # DSL, hand-rolled.
+    t0 = time.monotonic()
     try:
         with tempfile.TemporaryDirectory() as tmp:
             dsl_file = Path(tmp) / f"{dict_id}.dsl"
@@ -385,11 +387,12 @@ def convert_source(
             dest = out_dir / f"{dict_id}-dsl"
             zip_path(dsl_file, dest)
             results.append(("DSL (ABBYY Lingvo)", dest.with_suffix(".zip")))
-        print("    DSL: ok")
+        print(f"    DSL: ok ({time.monotonic() - t0:.1f}s)")
     except Exception:
-        print(f"    DSL: FAILED\n{traceback.format_exc()}", file=sys.stderr)
+        print(f"    DSL: FAILED after {time.monotonic() - t0:.1f}s\n{traceback.format_exc()}", file=sys.stderr)
 
     # FB2, hand-rolled.
+    t0 = time.monotonic()
     try:
         with tempfile.TemporaryDirectory() as tmp:
             fb2_file = Path(tmp) / f"{dict_id}.fb2"
@@ -397,11 +400,12 @@ def convert_source(
             dest = out_dir / f"{dict_id}-fb2"
             zip_path(fb2_file, dest)
             results.append(("FB2 (FictionBook)", dest.with_suffix(".zip")))
-        print("    FB2: ok")
+        print(f"    FB2: ok ({time.monotonic() - t0:.1f}s)")
     except Exception:
-        print(f"    FB2: FAILED\n{traceback.format_exc()}", file=sys.stderr)
+        print(f"    FB2: FAILED after {time.monotonic() - t0:.1f}s\n{traceback.format_exc()}", file=sys.stderr)
 
     # PDF, hand-rolled (fpdf2).
+    t0 = time.monotonic()
     try:
         with tempfile.TemporaryDirectory() as tmp:
             pdf_file = Path(tmp) / f"{dict_id}.pdf"
@@ -409,14 +413,15 @@ def convert_source(
             dest = out_dir / f"{dict_id}-pdf"
             zip_path(pdf_file, dest)
             results.append(("PDF", dest.with_suffix(".zip")))
-        print("    PDF: ok")
+        print(f"    PDF: ok ({time.monotonic() - t0:.1f}s)")
     except Exception:
-        print(f"    PDF: FAILED\n{traceback.format_exc()}", file=sys.stderr)
+        print(f"    PDF: FAILED after {time.monotonic() - t0:.1f}s\n{traceback.format_exc()}", file=sys.stderr)
 
     # Every write-capable pyglossary plugin.
     formats = list_pyglossary_formats()
     for name, plugin in sorted(formats.items()):
         label = getattr(plugin, "description", name)
+        t0 = time.monotonic()
         try:
             glos = build_glossary(entries, dict_name, description)
             with tempfile.TemporaryDirectory() as tmp:
@@ -432,8 +437,8 @@ def convert_source(
                 dest = out_dir / f"{dict_id}-{name.lower()}"
                 zip_path(src_path, dest)
                 results.append((label, dest.with_suffix(".zip")))
-            print(f"    {name}: ok")
+            print(f"    {name}: ok ({time.monotonic() - t0:.1f}s)")
         except Exception:
-            print(f"    {name}: FAILED ({sys.exc_info()[1]})", file=sys.stderr)
+            print(f"    {name}: FAILED after {time.monotonic() - t0:.1f}s ({sys.exc_info()[1]})", file=sys.stderr)
 
     return results
