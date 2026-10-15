@@ -28,6 +28,7 @@ python3 -m http.server -d docs 8000   # проверить локально
 - `src/convert.py` — конвертация одного jsonl-словаря во все форматы.
 - `src/build_all.py` — оркестрация: скачать все словари → конвертировать → `docs/manifest.json`.
 - `src/build_site.py` — `docs/manifest.json` → `docs/index.html`.
+- `prebuilt/` — единственное исключение из «ничего не коммитим»: форматы, которые нельзя собрать в CI (сейчас — скомпилированный Apple Dictionary `.dictionary`, нужен macOS-only Dictionary Development Kit), собраны вручную и подхватываются `build_all.py` при каждой сборке. См. `prebuilt/README.md`.
 
 ## Правки данных
 

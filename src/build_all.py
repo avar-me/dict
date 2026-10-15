@@ -20,6 +20,13 @@ from sources_catalog import fetch_catalog, dictionary_sources  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs"
+PREBUILT = ROOT / "prebuilt"
+
+# Label per filename suffix for prebuilt (manually-built, committed) formats
+# that can't be compiled in CI -- see prebuilt/README.md.
+PREBUILT_LABELS = {
+    "appledict-compiled": "Apple Dictionary (готовый .dictionary для macOS)",
+}
 
 
 def download(url: str, dest: Path) -> None:
@@ -75,6 +82,14 @@ def main() -> None:
             if not results:
                 print(f"  !! no formats succeeded for {sid}", file=sys.stderr)
                 continue
+
+            for suffix, label in PREBUILT_LABELS.items():
+                prebuilt_file = PREBUILT / f"{sid}-{suffix}.zip"
+                if prebuilt_file.exists():
+                    dest = out_dir / prebuilt_file.name
+                    shutil.copy2(prebuilt_file, dest)
+                    results.append((label, dest))
+                    print(f"    {suffix}: prebuilt, copied from prebuilt/")
 
             manifest["sources"][sid] = {
                 "title": src["title"],
